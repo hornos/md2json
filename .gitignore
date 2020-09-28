@@ -1,0 +1,6 @@
+*.sav
+*.tmp
+venv
+*.pyc
+__pycache__
+.DS*
