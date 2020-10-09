@@ -22,6 +22,10 @@ Usage:
 
 '''
 
+def preparse_remove_latex_control(text):
+  return text.replace('\\tiny', "").replace('\\normalsize', "")
+# def
+
 def preparse_metadata(text):
   """Parse the given text into metadata and strip it for a Markdown parser.
   :param text: text to be parsed
@@ -69,9 +73,13 @@ class JSONRenderer(mistune.HTMLRenderer):
   # newline(self)
   # inline_html(self, html)
 
+  def set_args(self, args):
+    self._args = args
+
 #  # block level
   def paragraph(self, text):
     self._data[self._caption]['paragraphs'].append(text)
+    if(self._args.debug): print('PARAGRAPH:' + text + '\n')
     return 'PARAGRAPH:' + text + '\n'
     # return text
 #
@@ -84,6 +92,7 @@ class JSONRenderer(mistune.HTMLRenderer):
       caption = text.replace('Table:', '').strip()
       self._data[self._caption]['tables'][caption] = []
       self._table = caption
+      if(self._args.debug): print('Table:' + caption + '\n')
       return 'Table:' + caption + '\n'
     # fi
     # Section
@@ -118,6 +127,7 @@ class JSONRenderer(mistune.HTMLRenderer):
 
 #  # provide by table plugin
   def table(self, text):
+    if(self._args.debug): print('table text:' + text + '\n')
     return text
 #
   def table_head(self, text):
@@ -141,17 +151,21 @@ class JSONRenderer(mistune.HTMLRenderer):
 # class
 
 class MDParser():
-  def __init__(self, markdown_input):
-    self._markdown_input = markdown_input
+  def __init__(self, args):
+    self._markdown_input = args.markdown
+    self._args = args
 
   def parse(self):
     with open(self._markdown_input, 'r') as file:
+      renderer = JSONRenderer()
+      renderer.set_args(self._args)
+      raw_data = None
       try:
-        renderer =  JSONRenderer()
         # Run the parser
         markdown_parser = mistune.create_markdown( renderer=renderer, plugins=[plugin_table] )
         markdown_source = file.read()
         (rv, text) = preparse_metadata( markdown_source )
+        text = preparse_remove_latex_control(text)
         markdown_parser( text )
       except StopError:
         pass
@@ -159,22 +173,29 @@ class MDParser():
         print(e)
         sys.exit(1)
       finally:
+        # print(renderer._data)
         raw_data = renderer._data
         raw_data['Metadata'] = rv
-    return raw_data  
+        return raw_data  
 
 def main():
   parser = argparse.ArgumentParser(description='Makdown 2 JSON Converter for easy Infra Docs')
-  parser.add_argument('--md', action="store", dest="markdown",
-                      help="Markdown file to process")
+
+  parser.add_argument('--debug', action='store_true', default=False )
+
+  parser.add_argument( '--md', 
+                       action="store", dest="markdown",
+                       help="Markdown file to process" )
+
   args = parser.parse_args()
   if(args.markdown == None):
     parser.print_help()
     print(DESCRIPTION)
     sys.exit(0)
 
-  md_parser = MDParser(args.markdown)
+  md_parser = MDParser(args)
   raw_data = md_parser.parse()
+  # print('RAW_DATA:', raw_data)
   print(json.dumps(raw_data))
 
 if __name__ == "__main__":
